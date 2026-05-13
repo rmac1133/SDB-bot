@@ -4,6 +4,9 @@ from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
 from atlassian import Confluence
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Get environment variables
 slack_token = os.environ.get("SLACK_BOT_TOKEN")
@@ -44,10 +47,10 @@ def search_confluence(query):
         for page in pages:
             title = page["title"]
             page_id = page["id"]
-            content = confluence.get_page_by_id(
+            page_app = confluence.get_page_by_id(
                 page_id, expand="body.storage"
             )
-            body = content["body"]["storage"]["value"][:1000]
+            body = page_app["body"]["storage"]["value"][:1000]
             context += f"\n**{title}**\n{body}\n"
         return context
     except Exception as e:
@@ -83,7 +86,6 @@ def handle_mention(event, say):
     user = event["user"]
     text = event["text"]
     thread_ts = event.get("thread_ts", event["ts"])
-
     question = text.split(">", 1)[-1].strip()
 
     say(
@@ -113,7 +115,6 @@ def handle_dm(event, say):
 
         context = search_confluence(question)
         answer = ask_claude(question, context)
-
         say(text=answer)
 
 # Flask route for Slack events
