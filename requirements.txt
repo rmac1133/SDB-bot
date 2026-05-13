@@ -1,0 +1,6 @@
+slack-bolt
+flask
+anthropic
+atlassian-python-api
+requests
+python-dotenv
