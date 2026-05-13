@@ -36,7 +36,7 @@ def search_confluence(query):
     """Search only USA ServiceDesk Knowledge Base folder"""
     try:
         results = confluence.cql(
-            f'type=page AND space=GL0309 AND ancestor="USA ServiceDesk Knowledge Base" AND text~"{query}"',
+            f'type=page AND space=GL0309 AND ancestor=2681012313 AND text~"{query}"',
             limit=3
         )
         pages = results.get("results", [])
