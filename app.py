@@ -34,19 +34,31 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def search_confluence(query):
     try:
-        # Test - just get ALL pages in the space
-        results = confluence.cql(
-            "type=page AND space=GL0309",
-            limit=5
-        )
+        cql_query = f"type=page AND space=GL0309 AND title~\"{query}\""
+        print(f"DEBUG - CQL Query: {cql_query}")
+        results = confluence.cql(cql_query, limit=3)
         pages = results.get("results", [])
-        print(f"DEBUG - Total pages visible: {len(pages)}")
+        print(f"DEBUG - Pages found: {len(pages)}")
+        if not pages:
+            # Fallback to text search
+            cql_query = f"type=page AND space=GL0309 AND text~\"{query}\""
+            results = confluence.cql(cql_query, limit=3)
+            pages = results.get("results", [])
+        if not pages:
+            return "No relevant documentation found in the USA ServiceDesk Knowledge Base."
+        context = ""
         for page in pages:
-            print(f"DEBUG - Page: {page['title']}")
-        return f"Found {len(pages)} pages total in space"
+            title = page["title"]
+            page_id = page["id"]
+            page_app = confluence.get_page_by_id(
+                page_id, expand="body.storage"
+            )
+            body = page_app["body"]["storage"]["value"][:1000]
+            context += f"\n**{title}**\n{body}\n"
+        return context
     except Exception as e:
         print(f"DEBUG - Exception: {str(e)}")
-        return f"Error: {str(e)}"
+        return f"Could not search Confluence: {str(e)}"
 
 def ask_claude(question, confluence_context):
     """Ask Claude with Confluence context"""
