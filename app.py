@@ -33,16 +33,15 @@ confluence = Confluence(
 claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def search_confluence(query):
-    """Search only USA ServiceDesk Knowledge Base folder"""
     try:
-        results = confluence.cql(
-            f'type=page AND space=GL0309 AND ancestor=2681012313 AND text~"{query}"',
-            limit=3
-        )
+        cql_query = f'type=page AND space=GL0309 AND ancestor=2681012313 AND text~"{query}"'
+        print(f"DEBUG - CQL Query: {cql_query}")
+        results = confluence.cql(cql_query, limit=3)
+        print(f"DEBUG - Raw results: {results}")
         pages = results.get("results", [])
+        print(f"DEBUG - Pages found: {len(pages)}")
         if not pages:
             return "No relevant documentation found in the USA ServiceDesk Knowledge Base."
-
         context = ""
         for page in pages:
             title = page["title"]
@@ -54,6 +53,7 @@ def search_confluence(query):
             context += f"\n**{title}**\n{body}\n"
         return context
     except Exception as e:
+        print(f"DEBUG - Exception: {str(e)}")
         return f"Could not search Confluence: {str(e)}"
 
 def ask_claude(question, confluence_context):
