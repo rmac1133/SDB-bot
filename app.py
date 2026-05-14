@@ -34,7 +34,7 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def search_confluence(query):
     try:
-        cql_query = f"type=page AND space=GL0309 AND text~\"{query}\""
+        cql_query = f"type=page AND space=GL0309 AND title~\"{query}\""
         print(f"DEBUG - CQL Query: {cql_query}")
         results = confluence.cql(cql_query, limit=3)
         print(f"DEBUG - Raw results: {results}")
