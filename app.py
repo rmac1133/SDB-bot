@@ -164,7 +164,7 @@ def handle_mention(event, say):
 
     answer = ask_claude(question, context)
 
-    if answer.strip().upper() == "ESCALATE":
+    if "ESCALATE" in answer.strip().upper():
         handle_escalation(say, user, question, channel, thread_ts)
         return
 
@@ -188,7 +188,7 @@ def handle_dm(event, say):
 
         answer = ask_claude(question, context)
 
-        if answer.strip().upper() == "ESCALATE":
+        if "ESCALATE" in answer.strip().upper():
             handle_escalation(say, user, question, channel)
             return
 
