@@ -128,7 +128,7 @@ def handle_escalation(say, user, question, channel, thread_ts=None):
     """Handle escalation to SD-US team"""
     if thread_ts:
         say(
-            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. Let me get the team to help you out!",
+            text=f"I wasn't able to find documentation on that topic. Let me get the team to help you out! <@{user}>",
             thread_ts=thread_ts
         )
         app.client.chat_postMessage(
