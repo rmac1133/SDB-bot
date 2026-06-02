@@ -111,6 +111,7 @@ IMPORTANT FORMATTING RULES:
 - Use simple dashes (-) for bullet points
 - Keep emojis minimal, only use them naturally
 - Keep the response concise and easy to read in Slack
+- Do NOT start with greetings like "Hey", "Hi there", "Hello" — get straight to the answer
 
 Documentation:
 {confluence_context}
