@@ -56,6 +56,11 @@ def extract_keywords(question):
     )
     return message.content[0].text.strip()
 
+def should_escalate(answer):
+    """Check if the answer contains ESCALATE as a standalone word or line"""
+    lines = [line.strip() for line in answer.strip().split("\n")]
+    return "ESCALATE" in lines
+
 def search_confluence(query):
     try:
         keywords = extract_keywords(query)
@@ -100,7 +105,7 @@ STRICT RULES:
 - Answer using the documentation provided below
 - Each page in the documentation contains a Keywords section and an "Also asked as" section — use these to match the user's question to the right topic even if phrased differently
 - If the documentation is about the same topic as the question, answer it confidently using the documented steps
-- Only respond with EXACTLY the word ESCALATE and nothing else if the question is completely unrelated to anything in the documentation
+- If the question is completely unrelated to anything in the documentation, respond with EXACTLY this on its own line: ESCALATE
 - Do not make up information that is not in the documentation
 
 IMPORTANT FORMATTING RULES:
@@ -165,8 +170,9 @@ def handle_mention(event, say):
         return
 
     answer = ask_claude(question, context)
+    print(f"DEBUG - Answer: {answer}")
 
-    if answer.strip() == "ESCALATE":
+    if should_escalate(answer):
         handle_escalation(say, user, question, channel, thread_ts)
         return
 
@@ -189,8 +195,9 @@ def handle_dm(event, say):
             return
 
         answer = ask_claude(question, context)
+        print(f"DEBUG - Answer: {answer}")
 
-        if answer.strip() == "ESCALATE":
+        if should_escalate(answer):
             handle_escalation(say, user, question, channel)
             return
 
