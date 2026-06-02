@@ -33,6 +33,9 @@ confluence = Confluence(
 # Initialize Anthropic (Claude)
 claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+# SD-US group ID
+SD_US_GROUP_ID = "S09RRN48LDV"
+
 def strip_html(html):
     """Strip HTML tags and clean up text"""
     clean = re.sub(r'<[^>]+>', ' ', html)
@@ -123,10 +126,11 @@ def handle_mention(event, say):
     user = event["user"]
     text = event["text"]
     thread_ts = event.get("thread_ts", event["ts"])
+    channel = event["channel"]
     question = text.split(">", 1)[-1].strip()
 
     say(
-        text=f"Hey <@{user}>! Let me check the ServiceDesk Knowledge Base for you... 🔍",
+        text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
         thread_ts=thread_ts
     )
 
@@ -134,8 +138,13 @@ def handle_mention(event, say):
 
     if not context:
         say(
-            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. I'll escalate this to the ServiceDesk team who can assist you directly! 🙋",
+            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. Let me get the team to help you out!",
             thread_ts=thread_ts
+        )
+        app.client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
         )
         return
 
@@ -154,7 +163,7 @@ def handle_dm(event, say):
         context = search_confluence(question)
 
         if not context:
-            say(text="I wasn't able to find documentation on that topic. I'll escalate this to the ServiceDesk team who can assist you directly! 🙋")
+            say(text=f"I wasn't able to find documentation on that topic. Let me get the team to help! <!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}")
             return
 
         answer = ask_claude(question, context)
