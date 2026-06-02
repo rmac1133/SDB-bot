@@ -1,4 +1,5 @@
 import os
+import re
 import anthropic
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
@@ -32,6 +33,12 @@ confluence = Confluence(
 # Initialize Anthropic (Claude)
 claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+def strip_html(html):
+    """Strip HTML tags and clean up text"""
+    clean = re.sub(r'<[^>]+>', ' ', html)
+    clean = re.sub(r'\s+', ' ', clean)
+    return clean.strip()
+
 def extract_keywords(question):
     """Use Claude to extract search keywords from a question"""
     message = claude.messages.create(
@@ -56,10 +63,9 @@ def search_confluence(query):
         pages = results.get("results", [])
         print(f"DEBUG - Pages found: {len(pages)}")
         if not pages:
-            return "No relevant documentation found in the USA ServiceDesk Knowledge Base."
+            return None
         context = ""
         for page in pages:
-            # Handle both possible structures of the result
             page_id = page.get("content", {}).get("id") or page.get("id")
             title = page.get("content", {}).get("title") or page.get("title", "Unknown")
             print(f"DEBUG - Processing page: {title} (ID: {page_id})")
@@ -69,12 +75,13 @@ def search_confluence(query):
             page_app = confluence.get_page_by_id(
                 page_id, expand="body.storage"
             )
-            body = page_app["body"]["storage"]["value"][:2000]
-            context += f"\n**{title}**\n{body}\n"
-        return context if context else "No relevant documentation found in the USA ServiceDesk Knowledge Base."
+            raw_body = page_app["body"]["storage"]["value"]
+            clean_body = strip_html(raw_body)[:2000]
+            context += f"\n**{title}**\n{clean_body}\n"
+        return context if context else None
     except Exception as e:
         print(f"DEBUG - Exception: {str(e)}")
-        return f"Could not search Confluence: {str(e)}"
+        return None
 
 def ask_claude(question, confluence_context):
     """Ask Claude with Confluence context"""
@@ -86,8 +93,8 @@ def ask_claude(question, confluence_context):
                 "role": "user",
                 "content": f"""You are SDB, a friendly ServiceDesk assistant for Globant.
 Use the following documentation from the USA ServiceDesk Knowledge Base to answer the question.
-If you cannot find the answer in the documentation, let the user know you will escalate to the team.
 Do not make up answers. Only use what is in the documentation provided.
+Do NOT mention escalation — just answer the question clearly and concisely.
 
 Documentation:
 {confluence_context}
@@ -114,15 +121,16 @@ def handle_mention(event, say):
     )
 
     context = search_confluence(question)
-    answer = ask_claude(question, context)
 
-    if "escalate" in answer.lower():
+    if not context:
         say(
-            text=f"{answer}\n\nEscalating to the ServiceDesk team for further assistance.",
+            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. I'll escalate this to the ServiceDesk team who can assist you directly! 🙋",
             thread_ts=thread_ts
         )
-    else:
-        say(text=answer, thread_ts=thread_ts)
+        return
+
+    answer = ask_claude(question, context)
+    say(text=answer, thread_ts=thread_ts)
 
 # Handle Direct Messages
 @app.event("message")
@@ -134,6 +142,11 @@ def handle_dm(event, say):
         say(text=f"Hey <@{user}>! Let me check that for you... 🔍")
 
         context = search_confluence(question)
+
+        if not context:
+            say(text="I wasn't able to find documentation on that topic. I'll escalate this to the ServiceDesk team who can assist you directly! 🙋")
+            return
+
         answer = ask_claude(question, context)
         say(text=answer)
 
