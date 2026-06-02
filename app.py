@@ -95,9 +95,12 @@ def ask_claude(question, confluence_context):
             {
                 "role": "user",
                 "content": f"""You are SDB, a friendly ServiceDesk assistant for Globant.
-Use the following documentation from the USA ServiceDesk Knowledge Base to answer the question.
-Do not make up answers. Only use what is in the documentation provided.
-Do NOT mention escalation — just answer the question clearly and concisely.
+
+STRICT RULES:
+- ONLY answer using the documentation provided below
+- If the documentation does not contain a clear answer to the question, respond with EXACTLY this word and nothing else: ESCALATE
+- Do not guess, infer, or use outside knowledge
+- Do not make up information
 
 IMPORTANT FORMATTING RULES:
 - Do NOT use #, ##, ### for headers
@@ -120,6 +123,25 @@ Respond in a friendly, professional tone."""
     )
     return message.content[0].text
 
+def handle_escalation(say, user, question, channel, thread_ts=None):
+    """Handle escalation to SD-US team"""
+    if thread_ts:
+        say(
+            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. Let me get the team to help you out!",
+            thread_ts=thread_ts
+        )
+        app.client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
+        )
+    else:
+        say(text=f"I wasn't able to find documentation on that topic. Let me get the team to help!")
+        app.client.chat_postMessage(
+            channel=channel,
+            text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
+        )
+
 # Handle @SDB mentions in channels
 @app.event("app_mention")
 def handle_mention(event, say):
@@ -137,18 +159,15 @@ def handle_mention(event, say):
     context = search_confluence(question)
 
     if not context:
-        say(
-            text=f"Hey <@{user}>! I wasn't able to find documentation on that topic. Let me get the team to help you out!",
-            thread_ts=thread_ts
-        )
-        app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
-        )
+        handle_escalation(say, user, question, channel, thread_ts)
         return
 
     answer = ask_claude(question, context)
+
+    if answer.strip().upper() == "ESCALATE":
+        handle_escalation(say, user, question, channel, thread_ts)
+        return
+
     say(text=answer, thread_ts=thread_ts)
 
 # Handle Direct Messages
@@ -156,17 +175,23 @@ def handle_mention(event, say):
 def handle_dm(event, say):
     if event.get("channel_type") == "im":
         user = event["user"]
+        channel = event["channel"]
         question = event["text"]
 
-        say(text=f"Hey <@{user}>! Let me check that for you... 🔍")
+        say(text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍")
 
         context = search_confluence(question)
 
         if not context:
-            say(text=f"I wasn't able to find documentation on that topic. Let me get the team to help! <!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}")
+            handle_escalation(say, user, question, channel)
             return
 
         answer = ask_claude(question, context)
+
+        if answer.strip().upper() == "ESCALATE":
+            handle_escalation(say, user, question, channel)
+            return
+
         say(text=answer)
 
 # Flask route for Slack events
