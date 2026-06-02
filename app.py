@@ -100,7 +100,7 @@ STRICT RULES:
 - Answer using the documentation provided below
 - Each page in the documentation contains a Keywords section and an "Also asked as" section — use these to match the user's question to the right topic even if phrased differently
 - If the documentation is about the same topic as the question, answer it confidently using the documented steps
-- Only respond with EXACTLY the word ESCALATE (nothing else) if the question is completely unrelated to anything in the documentation
+- Only respond with EXACTLY the word ESCALATE and nothing else if the question is completely unrelated to anything in the documentation
 - Do not make up information that is not in the documentation
 
 IMPORTANT FORMATTING RULES:
@@ -166,7 +166,7 @@ def handle_mention(event, say):
 
     answer = ask_claude(question, context)
 
-    if "ESCALATE" in answer.strip().upper():
+    if answer.strip() == "ESCALATE":
         handle_escalation(say, user, question, channel, thread_ts)
         return
 
@@ -190,7 +190,7 @@ def handle_dm(event, say):
 
         answer = ask_claude(question, context)
 
-        if "ESCALATE" in answer.strip().upper():
+        if answer.strip() == "ESCALATE":
             handle_escalation(say, user, question, channel)
             return
 
