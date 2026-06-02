@@ -77,7 +77,7 @@ def search_confluence(query):
             )
             raw_body = page_app["body"]["storage"]["value"]
             clean_body = strip_html(raw_body)[:2000]
-            context += f"\n**{title}**\n{clean_body}\n"
+            context += f"\n{title}\n{clean_body}\n"
         return context if context else None
     except Exception as e:
         print(f"DEBUG - Exception: {str(e)}")
@@ -96,12 +96,22 @@ Use the following documentation from the USA ServiceDesk Knowledge Base to answe
 Do not make up answers. Only use what is in the documentation provided.
 Do NOT mention escalation — just answer the question clearly and concisely.
 
+IMPORTANT FORMATTING RULES:
+- Do NOT use #, ##, ### for headers
+- Do NOT use ** for bold
+- Do NOT use markdown formatting
+- Use plain text only
+- Use numbers (1. 2. 3.) for steps
+- Use simple dashes (-) for bullet points
+- Keep emojis minimal, only use them naturally
+- Keep the response concise and easy to read in Slack
+
 Documentation:
 {confluence_context}
 
 User Question: {question}
 
-Respond in a friendly, professional tone. Keep it concise and clear."""
+Respond in a friendly, professional tone."""
             }
         ]
     )
