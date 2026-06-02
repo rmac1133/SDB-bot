@@ -97,10 +97,11 @@ def ask_claude(question, confluence_context):
                 "content": f"""You are SDB, a friendly ServiceDesk assistant for Globant.
 
 STRICT RULES:
-- ONLY answer using the documentation provided below
-- If the documentation does not contain a clear answer to the question, respond with EXACTLY this word and nothing else: ESCALATE
-- Do not guess, infer, or use outside knowledge
-- Do not make up information
+- Answer using the documentation provided below
+- Each page in the documentation contains a Keywords section and an "Also asked as" section — use these to match the user's question to the right topic even if phrased differently
+- If the documentation is about the same topic as the question, answer it confidently using the documented steps
+- Only respond with EXACTLY the word ESCALATE (nothing else) if the question is completely unrelated to anything in the documentation
+- Do not make up information that is not in the documentation
 
 IMPORTANT FORMATTING RULES:
 - Do NOT use #, ##, ### for headers
@@ -137,7 +138,7 @@ def handle_escalation(say, user, question, channel, thread_ts=None):
             text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
         )
     else:
-        say(text=f"I wasn't able to find documentation on that topic. Let me get the team to help!")
+        say(text=f"I wasn't able to find documentation on that topic. Let me get the team to help! <@{user}>")
         app.client.chat_postMessage(
             channel=channel,
             text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
