@@ -59,14 +59,19 @@ def search_confluence(query):
             return "No relevant documentation found in the USA ServiceDesk Knowledge Base."
         context = ""
         for page in pages:
-            title = page["title"]
-            page_id = page["id"]
+            # Handle both possible structures of the result
+            page_id = page.get("content", {}).get("id") or page.get("id")
+            title = page.get("content", {}).get("title") or page.get("title", "Unknown")
+            print(f"DEBUG - Processing page: {title} (ID: {page_id})")
+            if not page_id:
+                print("DEBUG - No page ID found, skipping")
+                continue
             page_app = confluence.get_page_by_id(
                 page_id, expand="body.storage"
             )
             body = page_app["body"]["storage"]["value"][:2000]
             context += f"\n**{title}**\n{body}\n"
-        return context
+        return context if context else "No relevant documentation found in the USA ServiceDesk Knowledge Base."
     except Exception as e:
         print(f"DEBUG - Exception: {str(e)}")
         return f"Could not search Confluence: {str(e)}"
@@ -144,5 +149,3 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
     flask_app.run(host="0.0.0.0", port=port)
-# force redeploy
-
