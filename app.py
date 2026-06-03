@@ -36,9 +36,6 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # SD-US group ID
 SD_US_GROUP_ID = "S09RRN48LDV"
 
-# Track threads where SDB has been active
-active_threads = set()
-
 def strip_html(html):
     """Strip HTML tags and clean up text"""
     clean = re.sub(r'<[^>]+>', ' ', html)
@@ -63,6 +60,23 @@ def should_escalate(answer):
     """Check if the answer contains ESCALATE as a standalone line"""
     lines = [line.strip() for line in answer.strip().split("\n")]
     return "ESCALATE" in lines
+
+def is_bot_in_thread(channel, thread_ts):
+    """Check if SDB has already replied in this thread by looking at Slack history"""
+    try:
+        result = app.client.conversations_replies(
+            channel=channel,
+            ts=thread_ts
+        )
+        bot_info = app.client.auth_test()
+        bot_id = bot_info["bot_id"]
+        for msg in result.get("messages", []):
+            if msg.get("bot_id") == bot_id:
+                return True
+        return False
+    except Exception as e:
+        print(f"DEBUG - is_bot_in_thread error: {str(e)}")
+        return False
 
 def search_confluence(query):
     try:
@@ -178,9 +192,6 @@ def handle_mention(event, say):
     channel = event["channel"]
     question = text.split(">", 1)[-1].strip()
 
-    # Track this thread as active
-    active_threads.add(thread_ts)
-
     say(
         text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
         thread_ts=thread_ts
@@ -195,6 +206,10 @@ def handle_message(event, say):
     if event.get("bot_id"):
         return
 
+    # Ignore message edits and deletes
+    if event.get("subtype"):
+        return
+
     channel_type = event.get("channel_type")
     thread_ts = event.get("thread_ts")
     user = event.get("user")
@@ -207,8 +222,8 @@ def handle_message(event, say):
         process_question(question, user, channel, None, say)
         return
 
-    # Handle thread replies in active threads (no need to tag @SDB)
-    if thread_ts and thread_ts in active_threads:
+    # Handle thread replies — only if SDB has previously responded in this thread
+    if thread_ts and is_bot_in_thread(channel, thread_ts):
         say(
             text=f"Give me a moment... 🔍",
             thread_ts=thread_ts
