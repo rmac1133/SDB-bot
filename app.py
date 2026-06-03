@@ -36,6 +36,9 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # SD-US group ID
 SD_US_GROUP_ID = "S09RRN48LDV"
 
+# Track threads where SDB has been active
+active_threads = set()
+
 def strip_html(html):
     """Strip HTML tags and clean up text"""
     clean = re.sub(r'<[^>]+>', ' ', html)
@@ -57,7 +60,7 @@ def extract_keywords(question):
     return message.content[0].text.strip()
 
 def should_escalate(answer):
-    """Check if the answer contains ESCALATE as a standalone word or line"""
+    """Check if the answer contains ESCALATE as a standalone line"""
     lines = [line.strip() for line in answer.strip().split("\n")]
     return "ESCALATE" in lines
 
@@ -149,20 +152,8 @@ def handle_escalation(say, user, question, channel, thread_ts=None):
             text=f"<!subteam^{SD_US_GROUP_ID}> a user needs help with: {question}"
         )
 
-# Handle @SDB mentions in channels
-@app.event("app_mention")
-def handle_mention(event, say):
-    user = event["user"]
-    text = event["text"]
-    thread_ts = event.get("thread_ts", event["ts"])
-    channel = event["channel"]
-    question = text.split(">", 1)[-1].strip()
-
-    say(
-        text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
-        thread_ts=thread_ts
-    )
-
+def process_question(question, user, channel, thread_ts, say):
+    """Process a question and respond"""
     context = search_confluence(question)
 
     if not context:
@@ -178,30 +169,51 @@ def handle_mention(event, say):
 
     say(text=answer, thread_ts=thread_ts)
 
-# Handle Direct Messages
+# Handle @SDB mentions in channels
+@app.event("app_mention")
+def handle_mention(event, say):
+    user = event["user"]
+    text = event["text"]
+    thread_ts = event.get("thread_ts", event["ts"])
+    channel = event["channel"]
+    question = text.split(">", 1)[-1].strip()
+
+    # Track this thread as active
+    active_threads.add(thread_ts)
+
+    say(
+        text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
+        thread_ts=thread_ts
+    )
+
+    process_question(question, user, channel, thread_ts, say)
+
+# Handle all messages — thread replies and DMs
 @app.event("message")
-def handle_dm(event, say):
-    if event.get("channel_type") == "im":
-        user = event["user"]
-        channel = event["channel"]
-        question = event["text"]
+def handle_message(event, say):
+    # Ignore bot messages
+    if event.get("bot_id"):
+        return
 
+    channel_type = event.get("channel_type")
+    thread_ts = event.get("thread_ts")
+    user = event.get("user")
+    question = event.get("text", "")
+    channel = event["channel"]
+
+    # Handle DMs
+    if channel_type == "im":
         say(text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍")
+        process_question(question, user, channel, None, say)
+        return
 
-        context = search_confluence(question)
-
-        if not context:
-            handle_escalation(say, user, question, channel)
-            return
-
-        answer = ask_claude(question, context)
-        print(f"DEBUG - Answer: {answer}")
-
-        if should_escalate(answer):
-            handle_escalation(say, user, question, channel)
-            return
-
-        say(text=answer)
+    # Handle thread replies in active threads (no need to tag @SDB)
+    if thread_ts and thread_ts in active_threads:
+        say(
+            text=f"Give me a moment... 🔍",
+            thread_ts=thread_ts
+        )
+        process_question(question, user, channel, thread_ts, say)
 
 # Flask route for Slack events
 @flask_app.route("/slack/events", methods=["POST"])
