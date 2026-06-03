@@ -42,10 +42,20 @@ redis_client = redis.from_url(os.environ.get("REDIS_URL"), decode_responses=True
 THREADS_KEY = "sdb:active_threads"
 
 def is_active_thread(thread_ts):
-    return redis_client.sismember(THREADS_KEY, thread_ts)
+    try:
+        result = redis_client.sismember(THREADS_KEY, thread_ts)
+        print(f"DEBUG - is_active_thread({thread_ts}): {result}")
+        return result
+    except Exception as e:
+        print(f"DEBUG - is_active_thread error: {str(e)}")
+        return False
 
 def add_active_thread(thread_ts):
-    redis_client.sadd(THREADS_KEY, thread_ts)
+    try:
+        redis_client.sadd(THREADS_KEY, thread_ts)
+        print(f"DEBUG - Redis sadd success: {thread_ts}")
+    except Exception as e:
+        print(f"DEBUG - Redis sadd failed: {str(e)}")
 # ─────────────────────────────────────────────────────────────────────────────
 
 def strip_html(html):
@@ -187,7 +197,7 @@ def handle_mention(event, say):
     channel = event["channel"]
     question = text.split(">", 1)[-1].strip()
 
-    # Track thread in Redis
+    # Track and persist this thread in Redis
     add_active_thread(thread_ts)
 
     say(
@@ -211,7 +221,7 @@ def handle_message(event, say):
     question = event.get("text", "")
     channel = event["channel"]
 
-    # Handle DMss
+    # Handle DMs
     if channel_type == "im":
         say(text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍")
         process_question(question, user, channel, None, say)
