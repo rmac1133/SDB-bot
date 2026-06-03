@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import anthropic
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
@@ -36,6 +37,26 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # SD-US group ID
 SD_US_GROUP_ID = "S09RRN48LDV"
 
+# ── Thread persistence ────────────────────────────────────────────────────────
+THREADS_FILE = "active_threads.json"
+
+def load_threads():
+    try:
+        with open(THREADS_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+
+def save_threads(threads):
+    try:
+        with open(THREADS_FILE, "w") as f:
+            json.dump(list(threads), f)
+    except Exception as e:
+        print(f"DEBUG - save_threads error: {str(e)}")
+
+active_threads = load_threads()
+# ─────────────────────────────────────────────────────────────────────────────
+
 def strip_html(html):
     """Strip HTML tags and clean up text"""
     clean = re.sub(r'<[^>]+>', ' ', html)
@@ -60,23 +81,6 @@ def should_escalate(answer):
     """Check if the answer contains ESCALATE as a standalone line"""
     lines = [line.strip() for line in answer.strip().split("\n")]
     return "ESCALATE" in lines
-
-def is_bot_in_thread(channel, thread_ts):
-    """Check if SDB has already replied in this thread by looking at Slack history"""
-    try:
-        result = app.client.conversations_replies(
-            channel=channel,
-            ts=thread_ts
-        )
-        bot_info = app.client.auth_test()
-        bot_id = bot_info["bot_id"]
-        for msg in result.get("messages", []):
-            if msg.get("bot_id") == bot_id:
-                return True
-        return False
-    except Exception as e:
-        print(f"DEBUG - is_bot_in_thread error: {str(e)}")
-        return False
 
 def search_confluence(query):
     try:
@@ -192,6 +196,10 @@ def handle_mention(event, say):
     channel = event["channel"]
     question = text.split(">", 1)[-1].strip()
 
+    # Track and persist this thread
+    active_threads.add(thread_ts)
+    save_threads(active_threads)
+
     say(
         text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
         thread_ts=thread_ts
@@ -202,11 +210,8 @@ def handle_mention(event, say):
 # Handle all messages — thread replies and DMs
 @app.event("message")
 def handle_message(event, say):
-    # Ignore bot messages
     if event.get("bot_id"):
         return
-
-    # Ignore message edits and deletes
     if event.get("subtype"):
         return
 
@@ -223,11 +228,8 @@ def handle_message(event, say):
         return
 
     # Handle thread replies — only if SDB has previously responded in this thread
-    if thread_ts and is_bot_in_thread(channel, thread_ts):
-        say(
-            text=f"Give me a moment... 🔍",
-            thread_ts=thread_ts
-        )
+    if thread_ts and thread_ts in active_threads:
+        say(text=f"Give me a moment... 🔍", thread_ts=thread_ts)
         process_question(question, user, channel, thread_ts, say)
 
 # Flask route for Slack events
