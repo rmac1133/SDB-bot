@@ -1,6 +1,6 @@
 import os
 import re
-import json
+import redis
 import anthropic
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
@@ -37,24 +37,15 @@ claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # SD-US group ID
 SD_US_GROUP_ID = "S09RRN48LDV"
 
-# ── Thread persistence ────────────────────────────────────────────────────────
-THREADS_FILE = "active_threads.json"
+# ── Redis thread persistence ──────────────────────────────────────────────────
+redis_client = redis.from_url(os.environ.get("REDIS_URL"), decode_responses=True)
+THREADS_KEY = "sdb:active_threads"
 
-def load_threads():
-    try:
-        with open(THREADS_FILE, "r") as f:
-            return set(json.load(f))
-    except:
-        return set()
+def is_active_thread(thread_ts):
+    return redis_client.sismember(THREADS_KEY, thread_ts)
 
-def save_threads(threads):
-    try:
-        with open(THREADS_FILE, "w") as f:
-            json.dump(list(threads), f)
-    except Exception as e:
-        print(f"DEBUG - save_threads error: {str(e)}")
-
-active_threads = load_threads()
+def add_active_thread(thread_ts):
+    redis_client.sadd(THREADS_KEY, thread_ts)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def strip_html(html):
@@ -196,9 +187,8 @@ def handle_mention(event, say):
     channel = event["channel"]
     question = text.split(">", 1)[-1].strip()
 
-    # Track and persist this thread
-    active_threads.add(thread_ts)
-    save_threads(active_threads)
+    # Track thread in Redis
+    add_active_thread(thread_ts)
 
     say(
         text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍",
@@ -221,14 +211,14 @@ def handle_message(event, say):
     question = event.get("text", "")
     channel = event["channel"]
 
-    # Handle DMs
+    # Handle DMss
     if channel_type == "im":
         say(text=f"Hey <@{user}>! Give me a moment while I look that up for you... 🔍")
         process_question(question, user, channel, None, say)
         return
 
     # Handle thread replies — only if SDB has previously responded in this thread
-    if thread_ts and thread_ts in active_threads:
+    if thread_ts and is_active_thread(thread_ts):
         say(text=f"Give me a moment... 🔍", thread_ts=thread_ts)
         process_question(question, user, channel, thread_ts, say)
 

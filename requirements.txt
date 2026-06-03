@@ -4,3 +4,4 @@ anthropic
 atlassian-python-api
 requests
 python-dotenv
+redis
