@@ -128,6 +128,7 @@ STRICT RULES:
 - Each page in the documentation contains a Keywords section and an "Also asked as" section — use these to match the user's question to the right topic even if phrased differently
 - If the documentation is about the same topic as the question, answer it confidently using the documented steps
 - If the question is completely unrelated to anything in the documentation, respond with EXACTLY this on its own line: ESCALATE
+- If the user says the documented steps already failed or did not work for them (e.g. "it doesn't work", "login fails", "still broken"), do NOT repeat or re-explain the steps. Instead respond with EXACTLY this on its own line: ESCALATE
 - Do not make up information that is not in the documentation
 
 IMPORTANT FORMATTING RULES:
