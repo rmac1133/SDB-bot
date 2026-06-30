@@ -26,7 +26,7 @@ handler = SlackRequestHandler(app)
 
 # Initialize Confluence
 confluence = Confluence(
-    url="https://globant-services.atlassian.net/wiki",
+    url="https://globant.atlassian.net/wiki",
     username=os.environ.get("CONFLUENCE_EMAIL"),
     password=os.environ.get("CONFLUENCE_API_TOKEN")
 )
